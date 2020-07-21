@@ -3,7 +3,7 @@ import re
 
 
 class CountFucks:
-    whoGivesAFuck = {"Sonder": 0}
+    whoGivesAFuck = {"Sonder": 0, "Rachel":69}
     leaderboard = []
     hexLog = []
     leaderLog = []
