@@ -1,20 +1,50 @@
 #!/bin/env/python3
-
-
-#SONDERBOT - (C) Greg Norris 2019
+#SONDERBOT - (C) Greg Norris 2019-2020
 #Simple SSL-IRC Chat Bot
 #from IRCCON import *
 #### BOTCLIENT(server, port,channel,botnick,botnick2,botnick3,botnickpass,botpass)
 
+
+###### PROGRAM STRUCTURE ######
+#   dotenv file required ".env", see "sample.env" file for reference.
+#
+#   IRCCON - handles the IRC connection to the IRC server.
+#       -Contains: connect, joinChannel, send, get_response, get_names, whisper
+#
+#   BOTCLIENT: Contains bot functions, commands list, addons, main event loop.
+#       -Creates IRCCON class.
+#       -All command scripts rely on Messages:(Channel, User, Message) input
+#       -All command scripts have return functions: to_channel[Messages], and to_user[Messages]
+#
+#   WORKING FUNCTIONS: (default trigger is: "!")
+#       Count Fucks
+#           -Counts the number of times each user has said the word "fuck",
+#               -returns leader-board of top 5 users with highest score
+#
+#   FUNCTIONS IN PROGRESS:
+#       All addons are initialized in the array appList[] as their own class items.
+#       Addons are called sequentially from the array and have input(), to_channel(), to_user invoked().
+#
+#       SPYFALL: (Addon)
+#           Start Spyfall
+#               -Social deduction game, all players except the spy know the location, only the spy knows they are the spy.
+#               -Input(message), Output: to_channel, to_player
+#           Stop Spyfall
+#               -Stop the Spyfall game
+#       GREEN GLASS DOOR: (Addon)
+#           Start Green Glass Door
+#               -Word game which asks players to choose an item to pass through the door.
+#               -Input(message), Output: to_channel, to_player
+
+
 import logging
-from IRCCON import *
 from CountFucks import *
 from scripts.game_spyfall import * # text+IRC--> Spyfall() --> IRC.send()
 from scripts.game_trivia import *  # text+IRC--> Spyfall() --> IRC.send()
 from spyfall2 import *
 from DungeonGrenGlasRom import *
+from dotenv import load_dotenv
 
-#RACHEL IS THE BEST!!!
 ##########################################
 # IRCCON -> BOTCLIENT -> (MESSAGE{user:, message:}) -> Commands -> (sendout[])
 ##########################################
@@ -137,23 +167,25 @@ class BOTCLIENT:
     appsList = {}
 
     def __init__(self,
-        server,
-        port,
-        channel, botnick, botnick2, botnick3, potnickpass):
+                 server,
+                 port,
+                 channel, botnick, botnick2, botnick3, botnickpasswd, trigger):
 
+        #Accepts connection parameters from .env, can be set manually here
         self.server = server
         self.port = port
         self.channel = channel
         self.botnick = botnick
         self.botnick2 = botnick2
         self.botnick3 = botnick3
-        self.botnickpass = potnickpass
+        self.botnickpass = botnickpasswd
         self.botpass = " "
         self.gameEnabled = False
         self.spyfallEnabled = False
         self.triviaEnabled = False
         self.spyfall = SpyFall(self.irc)
         self.channelsList = []
+        self.trigger = trigger
         #self.functions.add[commands]
 
         #initiate IRC connection
@@ -177,25 +209,20 @@ class BOTCLIENT:
             #prints chat text to window
             print(t)
             self.commands(t)
-            self.speak("#botspam")
+            self.speak("I LIVE!")
 
 
 ###### CMDs ########
     def commands(self, text):
         commands_dispatch = {
-            str(self.trigger+"fuck")    : self.outputFuck,
-            str(self.trigger+"count fucks")    : self.count_fucks,
+            self.trigger+"fuck": self.outputFuck,
+            self.trigger+"count fucks": self.count_fucks,
             self.trigger+"start spyfall": self.start_spyfall,
             self.trigger+"stop spyfall": self.stop_spyfall,
             self.trigger+"shutdown": self.shutdown,
-            self.trigger+"fuck everyone" : self.count_fucks,
+            self.trigger+"fuck everyone": self.count_fucks,
+            self.trigger+"join channel": self.joinChannel(text),
 
-            # self.trigger+"stop" : self.stop,
-            # self.trigger+"echo" : self.echo,
-            # self.trigger+"no echo" : self.no_echo,
-            #"fuck conversion rate": self.count_fucks,
-            # "give a fuck": self.count_fucks,
-            # "fuck this": self.count_fucks,
         }
         user = re.match(':.*?!', text)
         if user:
@@ -220,11 +247,7 @@ class BOTCLIENT:
                     for key in commands_dispatch:
                         if key in command:
                             print("COMMAND FOUND")
-                            print("USER: "+user)
-                            print("CHANNEL: "+channel)
-                            print("COMMAND: "+command)
-
-
+                            print(user+" "+channel+" "+command)
 
                             ############### DISPATCH #####################
                             commands_dispatch[key](message)
@@ -292,23 +315,38 @@ class BOTCLIENT:
         self.irc.send(self.channel, "Fuck")
 
     def joinChannel(self, text):
+        #TODO - confirm ACL, IRCCON.joinChannel(), add to channels list
         pass
 
 ###########################    MAIN    ############################################
 def main():
     try:
-        #os = os.getcwd()
-        bot = BOTCLIENT("irc.wetfish.net", 6697,"#botspam","Turk","Torq","Storq", "") #TOTO Containerize this initialization later for OOP / multi-bot
+        #Load default connection perameters from .env
+        load_dotenv()
+        LOG = os.getenv("SONDERBOT_LOGS")
+        BOTNICK = os.getenv("SONDERBOT_BOTNICK")
+        BOTNICK2 = os.getenv("SONDERBOT_BOTNICK2")
+        BOTNICK3 = os.getenv("SONDERBOT_BOTNICK3")
+        CHANNEL = os.getenv("SONDERBOT_CHANNEL")
+        TRIGGER = os.getenv("SONDERBOT_ACL")
+        SERVER = os.getenv("SONDERBOT_TRIGGER")
+        PORT = os.getenv("SONDERBOT_SERVER")
+        CHANNEL = os.getenv("SONDERBOT_PORT")
+        BOTNICKPASSWD = os.getenv("SONDERBOT_BOTNICKPASSWD")
+
+        bot = BOTCLIENT(SERVER, PORT, CHANNEL, BOTNICK,
+                        BOTNICK2, BOTNICK3, BOTNICKPASSWD, TRIGGER)
     except Exception as e:
         print(e)
         pass
+
+
 ###############
 if __name__ == '__main__':
     main()
 ###########################    MAIN    ############################################
 
-
-
-class Logger():
-    logger = logging.getLogger('SONDERBOT')
-    hdlr = logging.FileHandler
+#TODO - LOGGING
+#class Logger():
+#    logger = logging.getLogger('SONDERBOT')
+#    hdlr = logging.FileHandler
