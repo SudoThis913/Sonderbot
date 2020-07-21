@@ -14,7 +14,7 @@ from scripts.game_trivia import *  # text+IRC--> Spyfall() --> IRC.send()
 from spyfall2 import *
 from DungeonGrenGlasRom import *
 
-
+#RACHEL IS THE BEST!!!
 ##########################################
 # IRCCON -> BOTCLIENT -> (MESSAGE{user:, message:}) -> Commands -> (sendout[])
 ##########################################
