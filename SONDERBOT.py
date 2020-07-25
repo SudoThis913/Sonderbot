@@ -1,7 +1,7 @@
 #!/bin/env/python3
-#SONDERBOT - (C) Greg Norris 2019-2020
-#Simple SSL-IRC Chat Bot
-#from IRCCON import *
+# SONDERBOT - (C) Greg Norris 2019-2020
+# Simple SSL-IRC Chat Bot
+# from IRCCON import *
 #### BOTCLIENT(server, port,channel,botnick,botnick2,botnick3,botnickpass,botpass)
 
 
@@ -38,12 +38,13 @@
 
 
 import logging
+import ssl, socket, time, os, traceback
+from importlib import reload  # allows dynamic reloading of modules
+from dotenv import load_dotenv
 from CountFucks import *
-from scripts.game_spyfall import * # text+IRC--> Spyfall() --> IRC.send()
-from scripts.game_trivia import *  # text+IRC--> Spyfall() --> IRC.send()
 from spyfall2 import *
 from DungeonGrenGlasRom import *
-from dotenv import load_dotenv
+
 
 ##########################################
 # IRCCON -> BOTCLIENT -> (MESSAGE{user:, message:}) -> Commands -> (sendout[])
@@ -55,7 +56,7 @@ class IRCCON:
     port = ""
     botnick = ""
     botnick2 = ""
-    botnick3= ""
+    botnick3 = ""
     botnickpass = ""
     channel = ""
     channelList = {}
@@ -77,24 +78,25 @@ class IRCCON:
         self.botpass = botpass
         self.botnickpass = botnickpass
 
-        #connect to server
+        # connect to server
         print("connecting to: " + server)
         self.irc.connect((server, port))
 
-        #Authenticate User
+        # Authenticate User
         self.irc.send(bytes("PASS spyfall \n", "UTF-8"))
-        #User authentication
+        # User authentication
         self.irc.send(bytes("USER " + botnick + " " + botnick + " " + botnick + " :SonderBot\n", "UTF-8"))
         self.irc.send(bytes("NICK " + botnick + "\n", "UTF-8"))
-        #self.irc.send(bytes("NICKSERV IDENTIFY " + botnickpass + " " + botpass + "\n", "UTF-8"))
+        # self.irc.send(bytes("NICKSERV IDENTIFY " + botnickpass + " " + botpass + "\n", "UTF-8"))
         time.sleep(2)
 
-        #self.irc.send(bytes("JOIN " + channel + "n", "UTF-8"))
+        # self.irc.send(bytes("JOIN " + channel + "n", "UTF-8"))
 
     def joinchannel(self, channel):
-        self.irc.send(bytes("JOIN "+channel+"\n", "UTF-8"))
+        self.irc.send(bytes("JOIN " + channel + "\n", "UTF-8"))
 
     def send(self, channel, msg):
+        print(channel + " " + msg)
         self.irc.send(bytes("PRIVMSG " + channel + " " + msg + "\n", "UTF-8"))
 
     def whisper(self, channel, user, msg):
@@ -105,7 +107,7 @@ class IRCCON:
         print("PRIVMSG #" + channel + ' :/msg ' + user + " " + msg + "\r\n")
         self.irc.send(bytes("PRIVMSG " + user + " :" + msg + "\r\n", "UTF-8"))
 
-    def echo(self,channel,user,msg):
+    def echo(self, channel, user, msg):
         channel = channel[1:]
         user = user[1:]
 
@@ -113,14 +115,14 @@ class IRCCON:
         time.sleep(.1)
         response = ""
         try:
-            response = self.irc.recv(4096).decode("UTF-8")   #2040
+            response = self.irc.recv(4096).decode("UTF-8")  # 2040
             if response.find('PING') != -1:
                 self.irc.send(bytes('PONG ' + response.split()[1].encode('UTF-8').decode('UTF-8') + '\r\n', "UTF-8"))
-                #self.irc.send(bytes("PONG", "UTF-8"))
-                print("RESPONSE"+response)
+                # self.irc.send(bytes("PONG", "UTF-8"))
+                print("RESPONSE" + response)
 
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            traceback.print_exc()
         return response
 
     def get_names(self, in_channel, firstRun):
@@ -144,11 +146,12 @@ class IRCCON:
                     gotNames = True
         return self.users
 
+
 #############################################################################
 #                                BOTCLIENT                                  #
 #############################################################################
 class BOTCLIENT:
-#### BOTCLIENT(port,channel,botnick,botnick2,botnick3,botnickpass,botpass) ####
+    #### BOTCLIENT(port,channel,botnick,botnick2,botnick3,botnickpass,botpass) ####
     ##IRC CONFIG###
     botRunning = True
     gameEnabled = False
@@ -168,12 +171,12 @@ class BOTCLIENT:
 
     def __init__(self,
                  server,
-                 port,
+                 sslport,
                  channel, botnick, botnick2, botnick3, botnickpasswd, trigger):
 
-        #Accepts connection parameters from .env, can be set manually here
+        # Accepts connection parameters from .env, can be set manually here
         self.server = server
-        self.port = port
+        self.port = int(sslport)
         self.channel = channel
         self.botnick = botnick
         self.botnick2 = botnick2
@@ -186,42 +189,50 @@ class BOTCLIENT:
         self.spyfall = SpyFall(self.irc)
         self.channelsList = []
         self.trigger = trigger
-        #self.functions.add[commands]
+        # self.functions.add[commands]
 
-        #initiate IRC connection
+        # initiate IRC connection
         self.irc.connect(self.server, self.port, self.botnick,
                          self.botnick2, self.botnick3, self.botpass, self.botnickpass)
         self.irc.joinchannel(self.channel)
         self.cwd = os.getcwd()
         self.users = self.irc.get_names(self.channel, True)
-        
+
         #############################################################################
         self.bot_running()  # MAIN EVENT LOOP
         #############################################################################
 
+    # *************** MAIN EVENT LOOP ****************************
     def bot_running(self):
         magic_character = "!"
         trigger = magic_character
-
-#*************** MAIN EVENT LOOP ****************************
+        #############################################################
         while self.botRunning:
             t = self.irc.get_response()
-            #prints chat text to window
+            # prints chat text to window
             print(t)
             self.commands(t)
-            self.speak("I LIVE!")
+            self.speak()
 
+    # ************** MAIN EVENT LOOP *****************************
 
-###### CMDs ########
+    ###### CMDs ########
+    def module_management(self):
+        # Dynamic reloading of modules
+        # TODO: if is_changed(addon): addon=reload(addon)
+        pass
+
     def commands(self, text):
         commands_dispatch = {
-            self.trigger+"fuck": self.outputFuck,
-            self.trigger+"count fucks": self.count_fucks,
-            self.trigger+"start spyfall": self.start_spyfall,
-            self.trigger+"stop spyfall": self.stop_spyfall,
-            self.trigger+"shutdown": self.shutdown,
-            self.trigger+"fuck everyone": self.count_fucks,
-            self.trigger+"join channel": self.joinChannel(text),
+            self.trigger + "fuck": self.outputFuck,
+            self.trigger + "count fucks": self.count_fucks,
+            self.trigger + "my fucks": self.count_fucks,
+            self.trigger + "count fucks": self.count_fucks,
+            self.trigger + "start spyfall": self.start_spyfall,
+            self.trigger + "stop spyfall": self.stop_spyfall,
+            self.trigger + "shutdown": self.shutdown,
+            self.trigger + "fuck everyone": self.count_fucks,
+            self.trigger + "join channel": self.joinChannel,
 
         }
         user = re.match(':.*?!', text)
@@ -233,46 +244,52 @@ class BOTCLIENT:
             if botName:
                 pass
             else:
-                command = re.search(r':.*?:', text) #isolate command in text
-                channel = re.search(r'#.*?:', text) #isolate channel in text
+                command = re.search(r':.*?:', text)  # isolate command in text
+                channel = re.search(r'#.*?:', text)  # isolate channel in text
                 if channel:
-                    channel = str(text[len(channel.group(0)):]).lower()
+                    channel = channel.group(0)[:-2]
+
+                    print("CHANNEL"+channel)
                 else:
-                    channel = "#botspam"
-                    print("CHANNEL NOT FOUND")
+                    channel = user
+                    print("WHISPER RECEIVED")
 
                 if command:
                     command = str(text[len(command.group(0)):]).lower()
-                    message = {"user": user, "channel": channel, "command": command}
+                    cmessage = {"channel": channel, "user": user, "command": command}
+                    print(cmessage["channel"]+" "+cmessage["user"]+" "+cmessage["command"])
                     for key in commands_dispatch:
                         if key in command:
                             print("COMMAND FOUND")
-                            print(user+" "+channel+" "+command)
+                            print(user + " " + channel + " " + command)
 
                             ############### DISPATCH #####################
-                            commands_dispatch[key](message)
+                            commands_dispatch[key](**cmessage)
                             break
-                    self.addons(message)
+                    self.addons(**cmessage)
 
-
-    def addons(self, *message):
+    def addons(self, **imessage):
         for app in self.appsList:
-            self.appsList[app].input(message)
+            self.appsList[app].input(imessage)
             channelout = self.appsList[app].to_channel()
             whispers = self.appsList[app].to_user()
             if whispers:
                 for whisper in whispers:
                     self.whisperQueue.append(whisper)
             if channelout:
-                for message in channelout:
-                    self.channelQueue.append(message)
+                for omessage in channelout:
+                    self.channelQueue.append(omessage)
 
-    def speak(self, in_channel):
-        for message in self.channelQueue:
-            self.irc.send(in_channel, message)
-        for whisper in self.whisperQueue:
-            self.irc.whisper(in_channel, whisper[0], whisper[1])
-
+    def speak(self):
+        floodLimit = 8
+        floodCount = 0
+        if floodCount <= floodLimit:
+            for chan_msg in self.channelQueue:
+                self.irc.send(chan_msg["channel"], chan_msg["message"])
+            for whisper in self.whisperQueue:
+                self.irc.whisper(whisper["channel"], whisper["user"], whisper["message"])
+        else:
+            time.sleep(3)
         self.channelQueue.clear()
         self.whisperQueue.clear()
 
@@ -284,7 +301,7 @@ class BOTCLIENT:
         return access
 
     def start_spyfall(self):
-        #self.irc.send(self.channel, "Spyfall Started")
+        # self.irc.send(self.channel, "Spyfall Started")
         self.appsList["sf"] = SpyFall(self.trigger)
         print("Spyfall Started")
 
@@ -292,52 +309,78 @@ class BOTCLIENT:
         self.botRunning = False
 
     def stop_spyfall(self):
-        #self.irc.send(self.channel, "Spyfall Started")
+        # self.irc.send(self.channel, "Spyfall Started")
         print("Spyfall Stopped")
 
     def stop(self):
         self.irc.send(self.channel, "Make Me")
         print("Make me")
+
     def echo(self):
         print("Echo ... ... ... echo")
+
     def no_echo(self):
         pass
 
-    def count_fucks(self, *fuckingMessage):
-        #print("counting fucks")
+    def count_fucks(self, **fuckingMessage):
+        # print("counting fucks")
         cf = CountFucks()
-        leaderboard = cf.returnfucks()
-        for fuckers in leaderboard:
-            #self.irc.send(self.channel, fuckers)
-            self.channelQueue.append(fuckers)
+        cf.countFucks()
+        cf_out = cf.to_channel(**fuckingMessage)
+        print("Printing Fucks")
+        for msg in cf_out:
+            print(msg["channel"]+msg["message"])
+            self.channelQueue.append(msg)
+    def my_fucks(self, **fuckingMessage):
+        # print("counting fucks")
+        cf = CountFucks()
+        cf.countFucks()
+        cf_out = cf.to_channel(**fuckingMessage)
+        print("Printing Fucks")
+        for msg in cf_out:
+            print(msg["channel"] + msg["message"])
+            self.channelQueue.append(msg)
 
-    def outputFuck(self, channel, user, message):
-        self.irc.send(self.channel, "Fuck")
+    def top_fucks(self, **fuckingMessage):
+        # print("counting fucks")
+        cf = CountFucks()
+        cf.countFucks()
+        cf_out = cf.to_channel(**fuckingMessage)
+        print("Printing Fucks")
+        for msg in cf_out:
+            print(msg["channel"] + msg["message"])
+            self.channelQueue.append(msg)
+    def outputFuck(self, **in_message):
+        in_channel = in_message["channel"]
+        self.irc.send(in_channel, "Fuck")
 
     def joinChannel(self, text):
-        #TODO - confirm ACL, IRCCON.joinChannel(), add to channels list
+        # TODO - confirm ACL, IRCCON.joinChannel(), add to channels list
+        pass
+    def process_outputs(self,**in_msgs):
         pass
 
 ###########################    MAIN    ############################################
 def main():
     try:
-        #Load default connection perameters from .env
+        # Load default connection perameters from .env
         load_dotenv()
         LOG = os.getenv("SONDERBOT_LOGS")
         BOTNICK = os.getenv("SONDERBOT_BOTNICK")
         BOTNICK2 = os.getenv("SONDERBOT_BOTNICK2")
         BOTNICK3 = os.getenv("SONDERBOT_BOTNICK3")
         CHANNEL = os.getenv("SONDERBOT_CHANNEL")
-        TRIGGER = os.getenv("SONDERBOT_ACL")
-        SERVER = os.getenv("SONDERBOT_TRIGGER")
-        PORT = os.getenv("SONDERBOT_SERVER")
-        CHANNEL = os.getenv("SONDERBOT_PORT")
+        TRIGGER = os.getenv("SONDERBOT_TRIGGER")
+        ACL = os.getenv("SONDERBOT_ACL")
+        SERVER = os.getenv("SONDERBOT_SERVER")
+        PORT = os.getenv("SONDERBOT_PORT")
         BOTNICKPASSWD = os.getenv("SONDERBOT_BOTNICKPASSWD")
-
+        print(PORT)
+        print(type(PORT))
         bot = BOTCLIENT(SERVER, PORT, CHANNEL, BOTNICK,
                         BOTNICK2, BOTNICK3, BOTNICKPASSWD, TRIGGER)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
         pass
 
 
@@ -346,7 +389,7 @@ if __name__ == '__main__':
     main()
 ###########################    MAIN    ############################################
 
-#TODO - LOGGING
-#class Logger():
+# TODO - LOGGING
+# class Logger():
 #    logger = logging.getLogger('SONDERBOT')
 #    hdlr = logging.FileHandler
