@@ -1,0 +1,8 @@
+.env
+*.log
+/logs
+.idea*
+/botenv
+jack.vbs
+*.pyc
+__pycache*
