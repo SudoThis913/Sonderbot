@@ -8,7 +8,10 @@ from importlib import import_module
 from Apps.sonderbotapp import SonderbotApp
 
 def dynamic_import():
-
+    # Dynamically imports Sonderbot App modules.
+    # Imports SBA apps, saves them in an array and returns them to the Sonderbot
+    # Compiles a dispatch table of commands from each app and returns it to the Sonderbot.
+    # TODO: Subdirectory package importing (currently all SBA apps must be on same level)
 
     for (_, name, _) in pkgutil.iter_modules([Path(__file__).parent]):
         #print(__name__)
@@ -24,7 +27,7 @@ def dynamic_import():
                 print(name)
                 #print(attribute)
                 has_get_dispatch = getattr(attribute, "get_dispatch", None)
-                has_dynamic_import = getattr(attribute,"dynamic_import", None)
+                has_dynamic_import = getattr(attribute, "dynamic_import", None)
                 if callable(has_get_dispatch):
                     if callable(has_dynamic_import):
                         pass
@@ -37,26 +40,6 @@ def dynamic_import():
                             print(e)
 
 def dynamic_import2():
-    currentdir = Path(__file__).parent
-    # Root, Directory, File
-    for r,d,f in os.walk(currentdir):
-        for item in f:
-            print(item)
-            if "sba_" in item and ".py" in item and ".pyc" not in item:
-                print(r)
-                x = os.path.basename(r)
-                print(r)
-
-                for (_, name, _) in pkgutil.iter_modules(r):
-                    imported_module = import_module(name, package='Apps')
-                    for i in dir(imported_module):
-                        attribute = getattr(imported_module, i)
-                        print(i)
-                        if inspect.isclass(attribute) and issubclass(attribute, SonderbotApp):
-                            setattr(sys.modules[__name__], name, attribute)
-                            print(name)
-
-
-
+    pass
 if __name__ == '__main__':
     dynamic_import()
