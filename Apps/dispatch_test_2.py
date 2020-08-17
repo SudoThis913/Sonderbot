@@ -5,6 +5,7 @@ import sys
 import inspect
 import pkgutil
 from importlib import import_module
+from importlib import util as il
 from Apps.sonderbotapp import SonderbotApp
 
 def dynamic_import():
@@ -14,8 +15,9 @@ def dynamic_import():
     # TODO: Subdirectory package importing (currently all SBA apps must be on same level)
 
     for (_, name, _) in pkgutil.iter_modules([Path(__file__).parent]):
-        #print(__name__)
-        #print(os.path.basename(__file__))
+        print(__name__)
+        print(name)
+        print(os.path.basename(__file__))
         imported_module = import_module(name, package='Apps')
         #print(imported_module)
         for i in dir(imported_module):
@@ -40,6 +42,33 @@ def dynamic_import():
                             print(e)
 
 def dynamic_import2():
-    pass
+    for (pre, name, sub) in pkgutil.iter_modules([Path(__file__).parent]):
+        #print(__name__)
+        print(name)
+        print(sub)
+        print(pre )
+        if "sba_" in name:
+            print(name)
+            imported_mod = import_module(name, Path(__file__).parent)
+            x = imported_mod.loader()
+            print(str(x.get_dispatch()))
+        #print(os.path.basename(__file__))
+
+
+# THIS ONE WORKS THE WAY I WANT IT TO YAY!
+def dynamic_import3():
+    for r, d, f in os.walk(Path(__file__).parent):
+        for file in f:
+            if "sba_" in file and file.endswith(".py"):
+                print(file, r)
+                spec = il.spec_from_file_location(file, str(os.path.join(r,file)))
+                print(spec)
+                foo = il.module_from_spec(spec)
+                spec.loader.exec_module(foo)
+                try:
+                    foo.loader()
+                except Exception as e:
+                    print("Failed to load")
+                    print(e)
 if __name__ == '__main__':
-    dynamic_import()
+    dynamic_import3()
