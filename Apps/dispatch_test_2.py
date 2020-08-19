@@ -57,18 +57,31 @@ def dynamic_import2():
 
 # THIS ONE WORKS THE WAY I WANT IT TO YAY!
 def dynamic_import3():
+    appslist = {}
+    dispatchTable = {}
     for r, d, f in os.walk(Path(__file__).parent):
         for file in f:
+            # Find Sonderbot Apps files (sba_*.py)
             if "sba_" in file and file.endswith(".py"):
-                print(file, r)
+                # Make import spec + loader from absolute filepath
                 spec = il.spec_from_file_location(file, str(os.path.join(r,file)))
-                print(spec)
-                foo = il.module_from_spec(spec)
-                spec.loader.exec_module(foo)
+                # Make module from spec
+                sba_module = il.module_from_spec(spec)
+                # Import module
+                spec.loader.exec_module(sba_module)
                 try:
-                    foo.loader()
+                    x = sba_module.loader()
+                    y = x.appName
+                    z = x.get_dispatch()
+                    if y not in appslist.keys():
+                        appslist[y] = x
+                    for key in z.keys():
+                        if key not in dispatchTable.keys():
+                            dispatchTable[key] = z[key]
                 except Exception as e:
                     print("Failed to load")
                     print(e)
+    for key in dispatchTable:
+        print(key)
 if __name__ == '__main__':
     dynamic_import3()
