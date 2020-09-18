@@ -61,12 +61,14 @@ class BOTCLIENT:
     active_apps_list = {}
     error_count = 0
 
-    def __init__(self, **botconfig):
+    def __init__(self):
         # initiate IRC connection
-        self.irc.connect(**botconfig)
-        self.irc.joinchannel(botconfig["channel"])
-        self.channelList.append(botconfig["channel"])
-        self.users = self.irc.get_names(botconfig["channel"], True)
+        #print
+        self.botconfig = get_config()
+        self.irc.connect(**self.botconfig)
+        self.irc.joinchannel(self.botconfig["CHANNEL"])
+        self.channelList.append(self.botconfig["CHANNEL"])
+        #self.users = self.irc.get_names(self.botconfig["CHANNEL"], True)
 
         #############################################################################
         self.bot_running()  # MAIN EVENT LOOP
@@ -79,8 +81,9 @@ class BOTCLIENT:
         #############################################################
         while self.botRunning and self.error_count == 0:
             t = self.irc.get_response()
+            if t:
             # prints chat text to window
-            print(t)
+                print(t)
             #self.commands(t)
             self.speak()
     # ************** MAIN EVENT LOOP *****************************
@@ -110,6 +113,8 @@ class BOTCLIENT:
 
 def get_config():
     # Loads bot configuration from .env file
+    #SONDERBOT requires a configuration file in the form of *.env.
+
     load_dotenv()
     botconfig = {'LOG': os.getenv("SONDERBOT_LOGS"),
                  'BOTNICK': os.getenv("SONDERBOT_BOTNICK"),
@@ -120,15 +125,16 @@ def get_config():
                  'ACL': os.getenv("SONDERBOT_ACL"),
                  'SERVER': os.getenv("SONDERBOT_SERVER"),
                  'PORT': os.getenv("SONDERBOT_PORT"),
-                 'BOTNICKPASSWD': os.getenv("SONDERBOT_BOTNICKPASSWD")}
+                 'BOTPASS': os.getenv("SONDERBOT_BOTPASS")}
+    for key in botconfig:
+        print(key+str(botconfig[key]))
     return botconfig
 
 ###########################    MAIN    ############################################
 def main():
     try:
         # Pull configuration from get_config(). Allows for multiple bots to be run from the same Sonderbot client.
-        botconfig = get_config()
-        bot = BOTCLIENT(**botconfig)
+        bot = BOTCLIENT()
     except Exception:
         traceback.print_exc()
         pass
