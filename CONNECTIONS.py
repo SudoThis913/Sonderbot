@@ -7,7 +7,6 @@ Asynchronous IRC connection.
 Sends and receives in 'Channel User Message' format.
 Initiates connection upon creation.
 Shares a messageQueues class to transport data between IRC and bot client.
-
 '''
 
 
@@ -16,15 +15,21 @@ class messageQueues:
         'incomming': deque(),
         'outgoing': deque()}
     }
+    def __str__(self):
+        for msg in self.queue:
+            print(msg)
 
 
 class IRCCON:
-    def __init__(self, hostname, port,
-                 botnick, botnick2, botnick3, botpass,
-                 async_loop, messageQueue=messageQueues):
-        self.msgQ = messageQueue
+    def __init__(self, hostname = None, port = None,
+                 botnick = None, botnick2 = None, botnick3=None, botpass=None,
+                 async_loop=asyncio.new_event_loop(), messagequeue=messageQueues):
+        self.msgQ = messagequeue
         self.connected = False
         self.async_loop = async_loop
+        self.reader = None
+        self.writer = None
+
         self.channels = ['#botspam']
         self.hostname = hostname
         self.port = port
@@ -32,26 +37,27 @@ class IRCCON:
         self.botnick2 = botnick2
         self.botnick3 = botnick3
         self.botpass = botpass
-        self.reader = None
-        self.writer = None
-        self.readQueue = None
-        self.writeQueue = None
-        self.connected = await self.connect()
 
-    def initialize_queue(self, messageQueue):
+        self.connected = await self.connect()
+        self.initialize_queue()
+
+    def initialize_queue(self):
         if self.hostname not in self.msgQ.queue:
             self.msgQ.queue[self.hostname] = {'incomming': deque(),
                                               'outgoing': deque()}
 
     async def handler(self, state=None, async_loop=None):
+        #SEND MESSAGES IN OUTGOING QUEUE TO IRC HOST
         for out_msg in self.msgQ.queue[self.hostname]['outgoing']:
             await self.send(**self.msgQ.queue[self.hostname]['outgoing'].popleft())
-        self.msgQ.queue[self.hostname]['incomming'].append(await self.receive())
+        #RECEIVE MESSAGES FROM IRC HOST
+        new_msg = await self.receive()
+        self.msgQ.queue[self.hostname]['incomming'].append(new_msg)
 
     async def connect(self):
         ### TEST SEGMENT - SHOULD BE HANDLED THROUGH MSG DEQUEUE
         print(f"connecting to {self.hostname} {self.port}")
-        sslctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile='selfsigned.cert')
+        #sslctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile='selfsigned.cert')
         reader, writer = await asyncio.open_connection(self.hostname, self.port)
         self.reader = reader
         self.writer = writer
@@ -78,9 +84,9 @@ class IRCCON:
 
     async def send(self, message=None, channel=None, user=None):
         if channel and user and message:
-            message = (bytes(f"PRIVMSG {channel} :/msg {user} {message}\n", "UTF-8"))
+            message = (bytes(f"PRIVMSG {channel[1:]} :/msg {user[1:]} {message}\n", "UTF-8"))
         elif channel and message:
-            message = (bytes(f"PRIVMSG {channel} {message}\n", "UTF-8"))
+            message = (bytes(f"PRIVMSG {channel[1:]} {message}\n", "UTF-8"))
         elif message:
             message = (bytes(f"{message}\n", "UTF-8"))
 
@@ -98,10 +104,29 @@ class IRCCON:
     def joinChannel(self, channel):
         print(f"joining {channel}")
 
+
     def whisper(self, channel, user, message):
         print(f"PRIVMSG {user}: {message}")
         return (f"PRIVMSG #{channel} :/msg {user} {message}\r\n")
 
     def joinchannel(self, channel):
         pass
-# botconfig.connections{hostname:{channel{funcitons, input, output, users}}}
+
+class testBot:
+    def __init__(self, queue = messageQueues):
+        self.q = queue
+
+    def print(self, hostname):
+        for msg in self.q.queue[hostname]["incomming"]:
+            print(self.q.queue[hostname]["incomming"].popleft())
+
+if __name__ == '__main__':
+
+    # RUNS TEST BOT ON CONNECTION, SHOULD CONNECT AND PRINT ANYTHING ON THE CHANNEL
+    async_queue = messageQueues
+    irc = IRCCON(hostname = "irc.wetfish.net", port = 6697,
+                 botnick = "sonderbot", botnick2 = "Biggus", botnick3="Henry", botpass="sonderbotpw",
+                 async_loop=asyncio.new_event_loop(), messagequeue=messageQueues)
+    bot = asyncio.gather(testBot(async_queue),irc.handler(async_queue))
+
+    pass
