@@ -3,23 +3,24 @@ import ssl
 from collections import deque
 
 '''
-Asynchronous IRC connection.
-Sends and receives in 'Channel User Message' format.
-Initiates connection upon creation.
+Asynchronous IRC connection over SSL.
 Shares a messageQueues class to transport data between IRC and bot client.
+Instantiate w/ IRC credentials before running .connect()
+
 '''
 
-
+#Used to send data between IRCCON and Sonderbot
 class messageQueues:
     queue = {"hostname": {
         'incomming': deque(),
         'outgoing': deque()}
     }
+
     def __str__(self):
         for msg in self.queue:
             print(msg)
 
-
+#Asynchronous IRC connection.
 class IRCCON:
     def __init__(self, hostname = None, port = None,
                  botnick = None, botnick2 = None, botnick3=None, botpass=None,
@@ -46,10 +47,9 @@ class IRCCON:
                                               'outgoing': deque()}
 
     async def connect(self):
-        ### TEST SEGMENT - SHOULD BE HANDLED THROUGH MSG DEQUEUE
+        sslctx = ssl.create_default_context()
         print(f"connecting to {self.hostname} {self.port}")
         #create ssl default context.
-        sslctx = ssl.create_default_context()
         reader, writer = await asyncio.open_connection(self.hostname, self.port, ssl=sslctx)
         self.reader = reader
         self.writer = writer
@@ -57,9 +57,10 @@ class IRCCON:
         self.connected = True
 
         #Authenticate user, start handling IO calls
-        #await asyncio.gather(await self.authenticate_user(), await self.handler())
         await self.authenticate_user()
         # Loop IO calls and message queue handling
+        await asyncio.sleep(.5)
+        await self.joinChannel("#botspam")
         while self.connected:
             await self.handler()
 
@@ -87,21 +88,22 @@ class IRCCON:
                     self.msgQ.queue[self.hostname]['incomming'].append(new_msg)
             except Exception as e:
                 print(e)
-    async def authenticate_user(self):
-        #print(f"PASS {self.botpass}")
-        await asyncio.sleep(1)
-        await self.handler(message=f"PASS {self.botpass} \n")
 
+    async def authenticate_user(self):
+        #Send password (optional)
+        if self.botpass is not None:
+            await asyncio.sleep(1)
+            await self.handler(message=f"PASS {self.botpass} \n")
+
+        #Send usernames
         await asyncio.sleep(1)
         await self.send(message=f"USER {self.botnick} {self.botnick2} {self.botnick3} :Sonderbot\n", channel=None, user=None)
 
+        #Set nickname
         await asyncio.sleep(1)
         print(f"NICK {self.botnick}")
         await self.send(message=f"NICK {self.botnick} \n", channel=None, user=None)
-        #await self.receive()
         self.authenticated = True
-
-
 
     async def disconnect(self):
         self.reader.close()
@@ -124,7 +126,6 @@ class IRCCON:
             print(f"send: M {message}")
         if message is not None:
             self.writer.write(message.encode())
-            #self.writer.write(b'\x00')
             await self.writer.drain()
             print(f"sending: {message}")
 
@@ -136,18 +137,18 @@ class IRCCON:
             if data.find('PING') != -1:
                 print("PONG")
                 print(f"received {data}")
-                response = ('PONG ' + data.split()[1]+'\r\n')
+                response = ('PONG '+data.split()[1])
                 await self.send(message=response)
 
-    def joinChannel(self, channel):
+    async def joinChannel(self, channel):
         print(f"joining {channel}")
-
+        await self.handler(message=f"JOIN {channel}\n")
 
     def whisper(self, channel, user, message):
         print(f"PRIVMSG {user}: {message}")
         return (f"PRIVMSG #{channel} :/msg {user} {message}\r\n")
 
-    def joinchannel(self, channel):
+    def commandsList(self):
         pass
 
 class testBot:
@@ -173,6 +174,6 @@ async def main():
     bot = testBot(messageQueues)
     await asyncio.gather(bot.bot_print(), irc.connect())
 
-
 if __name__ == '__main__':
+    #Run the test bot, connect to IRC.
     asyncio.run(main())
