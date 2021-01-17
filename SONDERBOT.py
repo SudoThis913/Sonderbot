@@ -7,18 +7,22 @@ import sys
 class botState():
     botConnected = False
     commandsList = {}
-    connections = {}
+    connections = []
     accessList = {}
 
-class BOT():
+class BOTCLIENT():
     bs = botState
     async def connectionManager(self, state):
         pass
     async def botFunctions(self, state):
         pass
 
+
+
     await asyncio.gather(connectionManager(bs), botFunctions(bs))
 
 
 
 
+if __name__ == '__main__':
+    bot = BOTCLIENT()

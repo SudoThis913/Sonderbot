@@ -10,6 +10,7 @@ Instantiate w/ IRC credentials before running .connect()
 '''
 
 #Used to send data between IRCCON and Sonderbot
+#Probably switch to Pandas DF in future update.
 class messageQueues:
     queue = {"hostname": {
         'incomming': deque(),
@@ -29,6 +30,7 @@ class IRCCON:
         self.connected = False
         self.authenticated = False
         self.async_loop = async_loop
+        #TODO Update as function params instead of class variable 2 limit scope
         self.reader = None
         self.writer = None
 
