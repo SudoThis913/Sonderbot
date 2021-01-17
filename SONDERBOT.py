@@ -37,6 +37,7 @@ class BOTCLIENT:
             self._local_commands(), return_exceptions=True)
 
     async def connection_handler(self, messageQueue):
+
         # TODO handle connections
         pass
 
@@ -77,6 +78,7 @@ class BOTCLIENT:
 
     async def set_trigger(self):
         pass
+
     async def bot_die(self):
         # DIE!
         pass

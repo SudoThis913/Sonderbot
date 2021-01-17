@@ -24,12 +24,27 @@ class MessageQueues:
         for msg in self.queue:
             print(msg)
 
+class Connection:
+    def __init__(self, hostname=None, port=None,
+                 botnick="SonderBot", botnick2="Biggus",
+                 botnick3="Maximus", botpass="SonderbotPW",
+                 messagequeue=MessageQueues):
+        self.hostname = hostname
+        self.port = port
+        self.botnick = botnick
+        self.botnick2 = botnick2
+        self.botnick3 = botnick3
+        self.botpass = botpass
+        self.messagequeue = messagequeue
+
+
 class SBConnections:
-   connections = {'default': deque()}
+   connections = [{"type": "IRC"}]
    connected = False
    CH_commands = {
    }
-   def __init__(self):
+   def __init__(self, connectionsList):
        pass
+
 
 

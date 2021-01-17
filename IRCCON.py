@@ -39,13 +39,14 @@ class IRCCON:
             if message:
                 self.msgQ.queue[self.hostname]['outgoing'].append(
                     {'message': message, 'channel': channel, 'user': user})
-            # Copy message cue for conditional statements
+            # Copy message queue for conditional statements
             mq = self.msgQ.queue[self.hostname].copy()
             self.msgQ.queue[self.hostname]['outgoing'].clear()
             # SEND MESSAGES IN OUTGOING QUEUE TO IRC HOST
             try:
                 if mq['outgoing']:
                     for out_msg in mq['outgoing']:
+                        # TODO - Retry send if failed (times = 5)
                         msgSend = mq['outgoing'].popleft()
                         await self.send(**msgSend)
                 # RECEIVE MESSAGES FROM IRC HOST
@@ -54,6 +55,7 @@ class IRCCON:
                     self.msgQ.queue[self.hostname]['incomming'].append(new_msg)
             except Exception as e:
                 print(e)
+
     def initialize_queue(self):
         if self.hostname not in self.msgQ.queue:
             self.msgQ.queue[self.hostname] = {'incomming': deque(),
@@ -73,7 +75,7 @@ class IRCCON:
         await self.authenticate_user()
         # Loop IO calls and message queue handling
         await asyncio.sleep(.5)
-        #await self.joinChannel("#botspam")
+        # await self.joinChannel("#botspam")
         while self.connected:
             await self.handler()
 
@@ -91,7 +93,8 @@ class IRCCON:
             "join": self.joinChannel,
             "leave": self.leave,
             "disconect": self.disconnect,
-            "getUsers": self.getUsers()
+            "getUsers": self.get_users,
+            "nickname": self.set_nickname
         }
         try:
             for command in in_commands.keys():
@@ -99,13 +102,9 @@ class IRCCON:
                     await IRC_commands[command](**in_commands[command])
                     print(f"COMMAND: {command}")
         except Exception as e:
-            print (e)
+            print(e)
 
-    async def getUsers(self):
-        pass
-    async def list(self):
-        pass
-    async def fistrun(self):
+    async def get_users(self):
         pass
 
     async def reconnect(self, times=1):
@@ -121,12 +120,13 @@ class IRCCON:
         await asyncio.sleep(1)
         await self.send(message=f"USER {self.botnick} {self.botnick2} {self.botnick3} :Sonderbot\n", channel=None,
                         user=None)
-
-        # Set nickname
-        await asyncio.sleep(1)
-        print(f"NICK {self.botnick}")
-        await self.send(message=f"NICK {self.botnick} \n", channel=None, user=None)
+        await self.set_nickname(self.botnick)
         self.authenticated = True
+
+    async def set_nickname(self, nickname):
+        # Set nickname
+        print(f"NICK {nickname}")
+        await self.send(message=f"NICK {nickname} \n", channel=None, user=None)
 
     async def disconnect(self):
         self.reader.close()
@@ -163,9 +163,9 @@ class IRCCON:
                 response = ('PONG ' + data.split()[1])
                 await self.send(message=response)
 
-    async def joinChannel(self, channel=None, key = None):
+    async def joinChannel(self, channel=None, key=None):
         print(f"joining {channel}")
-        if key: #if there is a channel key, add to command line
+        if key:  # if there is a channel key, add to command line
             key = f" {key}"
         await self.handler(message=f"JOIN {channel}{key}\n")
         print(f"joined: {channel}")
@@ -173,7 +173,6 @@ class IRCCON:
     def whisper(self, channel, user, message):
         print(f"PRIVMSG {user}: {message}")
         return (f"PRIVMSG #{channel} :/msg {user} {message}\r\n")
-
 
 
 class testBot:
