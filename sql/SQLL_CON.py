@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-import sqlite3 as s3
+import sqlite3 as sql3
 
 
 """
@@ -12,8 +12,8 @@ Will be rewritten as async task
 """
 
 class DBconn:
-    db_commands = {}  #Dictionary of expected db commands (add, remove, etc)
-    conn = s3.connect("sonderbot.db")
+    commands = {}  #Dictionary of expected db commands (add, remove, etc)
+    conn = sql3.connect("sonderbot.db")
     print("connected to sonderbot.db")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS IRCCONFIG
@@ -27,6 +27,7 @@ class DBconn:
                     BOTPASS     CHAR(120)   NOT NULL    
                     );
                 """)
+
     print("IRCCONFIG table exists.")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS CHANNELSCONFIG
@@ -81,25 +82,43 @@ class DBconn:
 
 
     def db_insert(self, in_var):
-        conn = s3.connect("sonderbot.db")
+        conn = sql3.connect("sonderbot.db")
         conn.close()
 
     def db_select(self, in_var):
-        conn = s3.connect("sonderbot.db")
+        conn = sql3.connect("sonderbot.db")
         cursor = conn.execute(in_var)
         conn.close()
 
-    def add_user(self,in_var):
+
+    '''Possibly better implemented in sonderbot class'''
+    def add_user(self,in_usr, in_acl):
         pass
 
-    def remove_user(self,in_var):
+    def remove_user(self,in_usr, in_acl):
         pass
 
-    def acl_user(self, in_var):
+    def edit_user(self, in_var):
         pass
 
-    def add_connection(self,in_var):
-        pass
+    def add_connection(self, **in_var):
+        conn = sql3.connect("sonderbot.db")
+        contype = ''
+        hostname = ''
+        port = ''
+        botnick = ''
+        botnick2 = ''
+        botnick3 = ''
+        botpass = ''
+        conn.execute(
+        '''INSERT INTO IRCCONFIG
+        (CONTYPE,HOSTNAME,PORT,BOTNICK,BOTNICK2,
+        BOTNICK3,BOTPASS)
+        VALUES(?,?,?,?,?,?,?)''', (contype, hostname, port, botnick, botnick2, botnick3, botpass))
+        conn.close()
 
     def remove_connection(self, in_var):
+        pass
+
+    def get_connections(self):
         pass

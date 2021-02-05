@@ -7,15 +7,12 @@ from collections import deque
 *Shares a messageQueues class to transport data between IRC and bot client.
 Instantiate w/ IRC credentials before running .connect()
 
-*Will allow for handling multiple IRC connections once JSON import is implemented.
-    Currently uses hard-coded values for development.
-
-
-
+Currently uses hard-coded values for development.
 '''
 
-#Used to send data between IRCCON and Sonderbot
-#Probably switch to Pandas DF in future update.
+
+# Used to send data between IRCCON and Sonderbot
+# Probably switch to Pandas DF in future update.
 
 class MessageQueues:
     queue = {
@@ -25,9 +22,14 @@ class MessageQueues:
             'commands': deque({'default_command': 'default params'})
         }
     }
+
+    @property
     def __str__(self):
+        output = ''
         for msg in self.queue:
-            print(msg)
+            output = output + "\n" + msg
+        return output
+
 
 class Connection:
     def __init__(self, hostname=None, port=None,
@@ -44,12 +46,10 @@ class Connection:
 
 
 class SBConnections:
-   connections = [{"type": "IRC"}]
-   connected = False
-   CH_commands = {
-   }
-   def __init__(self, connectionsList):
-       pass
+    connections = [{"type": "IRC"}]
+    connected = False
+    CH_commands = {
+    }
 
-
-
+    def __init__(self, connectionsList):
+        pass

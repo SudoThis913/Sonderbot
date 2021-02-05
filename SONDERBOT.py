@@ -2,7 +2,6 @@ import asyncio
 import functools
 import logging
 import sys
-import json
 
 from .Apps.AppManager import sba_context, SonderbotApp
 from .CONNECTIONS import SBConnections, MessageQueues
@@ -15,17 +14,12 @@ SONDERBOT IRC CLIENT
 
 """
 
-class BotState:
+class BOTCLIENT:
+    accessList = {"Sonder": 5}
     botConnected = False
     commandsList = {}
     connections = []
-
-
-
-class BOTCLIENT:
-    accessList = {"Sonder": 5} #HC credential until import.
-    bs = BotState()  # Saves current bot state
-    trigger = "!"  #  Hard coded trigger, can be overridden.
+    trigger = "!"
     msgQ = MessageQueues()
     appsList = {}
     activeApps = {"hostname": {
@@ -76,6 +70,7 @@ class BOTCLIENT:
         pass
 
     async def bot_print(self):
+        # Test print function, consumes queue, will turn into non-consuming function.
         async with self.mqLock:
             newmq = self.msgQ.queue.copy()
             for hostnames in newmq.keys():
@@ -86,13 +81,18 @@ class BOTCLIENT:
         # TODO integrate Sonderbot Apps
         pass
 
-    async def set_trigger(self, user = None, trigger ="!"):
+    async def set_trigger(self, user=None, trigger="!"):
         if user in self.accessList:
             if self.accessList[user] > 5:
                 self.trigger = trigger
 
     async def bot_die(self):
-        # DIE!
+        # If user has >4 ACL or is channel mod:
+        # Close connections
+        # Log commands
+        # Write pending queue to DB.
+        # Close apps
+        # Close Sonderbot
         pass
 
 if __name__ == '__main__':
