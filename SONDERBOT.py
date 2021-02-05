@@ -6,23 +6,32 @@ import json
 
 from .Apps.AppManager import sba_context, SonderbotApp
 from .CONNECTIONS import SBConnections, MessageQueues
+from .sql.SQLL_CON import DBconn
+"""
+SONDERBOT IRC CLIENT
+*Supports multiple asynchronous connections.
+*Uses Hostname, Channel, User, Message to communicate with
+    CONNECTIONS.py and SonderBot Apps (SBA_*.py).
 
+"""
 
 class BotState:
     botConnected = False
     commandsList = {}
     connections = []
-    accessList = {}
+
 
 
 class BOTCLIENT:
-    bs = BotState()
-    trigger = "!"
+    accessList = {"Sonder": 5} #HC credential until import.
+    bs = BotState()  # Saves current bot state
+    trigger = "!"  #  Hard coded trigger, can be overridden.
     msgQ = MessageQueues()
     appsList = {}
     activeApps = {"hostname": {
-        "channel": {
-            "application"}}}
+                    "channel": {
+                        "application": []
+                        }}}
     activeCommands = {}
 
     def __init__(self):
@@ -43,6 +52,7 @@ class BOTCLIENT:
 
     async def bot_commands(self):
         # TODO bot level commands, connection level commands, app level commands
+        """ Compiles all commmands into a dispatch table"""
         botCommands = {
             'get_bot_params': self._get_bot_params(),
         }
@@ -76,8 +86,10 @@ class BOTCLIENT:
         # TODO integrate Sonderbot Apps
         pass
 
-    async def set_trigger(self):
-        pass
+    async def set_trigger(self, user = None, trigger ="!"):
+        if user in self.accessList:
+            if self.accessList[user] > 5:
+                self.trigger = trigger
 
     async def bot_die(self):
         # DIE!

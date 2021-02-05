@@ -90,7 +90,7 @@ class IRCCON:
 
         IRC_commands = {
             "connect": self.connect,
-            "join": self.joinChannel,
+            "join": self.join_channel,
             "leave": self.leave,
             "disconect": self.disconnect,
             "getUsers": self.get_users,
@@ -163,7 +163,7 @@ class IRCCON:
                 response = ('PONG ' + data.split()[1])
                 await self.send(message=response)
 
-    async def joinChannel(self, channel=None, key=None):
+    async def join_channel(self, channel=None, key=None):
         print(f"joining {channel}")
         if key:  # if there is a channel key, add to command line
             key = f" {key}"

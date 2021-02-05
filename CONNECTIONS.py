@@ -3,9 +3,14 @@ import ssl
 from collections import deque
 
 '''
-Asynchronous connections over SSL. Supports IRC client operations.
-Shares a messageQueues class to transport data between IRC and bot client.
+*Asynchronous connections over SSL. Supports IRC client operations.
+*Shares a messageQueues class to transport data between IRC and bot client.
 Instantiate w/ IRC credentials before running .connect()
+
+*Will allow for handling multiple IRC connections once JSON import is implemented.
+    Currently uses hard-coded values for development.
+
+
 
 '''
 
