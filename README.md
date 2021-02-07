@@ -4,6 +4,8 @@ Working modules: IRCCON
 
 In progress: SONDERBOT, CONNECTIONS, SBA_APPS.
 
-Has no reconnect strategy yet. Does not handle channel ops functions yet.
-Making a gradual transition from synchronous to async when I feel like it.
+IRCCON contains working IRC connection and test bot which prints channel content.
+Does not handle channel ops functions yet.
+
+
 Code reviews appreciated!
