@@ -2,12 +2,13 @@ import asyncio
 import ssl
 from collections import deque
 # Asynchronous IRC connection.
-from CONNECTIONS import MessageQueues
+from Queues import MessageQueues
 
 '''
 Asynchronous IRC connection class.
 Interfaces with CONNECTIONS.handler via MessageQueues class
 Initiate IRCCON first w/ connection info, then run connect() in async loop
+#TODO Change message type to asyncio queue.
 '''
 
 
@@ -31,11 +32,14 @@ class IRCCON:
         self.initialize_queue()
 
     async def handler(self, message=None, channel=None, user=None, in_commands=None):
+        # Process commands
         if in_commands:
             await self.commands(in_commands)
         qlock = asyncio.Lock()
         mq = None
+        #Lock the outgoing queue.
         async with qlock:
+            # Queue outgoing messages
             if message:
                 self.msgQ.queue[self.hostname]['outgoing'].append(
                     {'message': message, 'channel': channel, 'user': user})
@@ -43,18 +47,18 @@ class IRCCON:
             mq = self.msgQ.queue[self.hostname].copy()
             self.msgQ.queue[self.hostname]['outgoing'].clear()
             # SEND MESSAGES IN OUTGOING QUEUE TO IRC HOST
-            try:
-                if mq['outgoing']:
-                    for out_msg in mq['outgoing']:
-                        # TODO - Retry send if failed (times = 5)
-                        msgSend = mq['outgoing'].popleft()
-                        await self.send(**msgSend)
-                # RECEIVE MESSAGES FROM IRC HOST
-                new_msg = await self.receive()
-                if new_msg:
-                    self.msgQ.queue[self.hostname]['incomming'].append(new_msg)
-            except Exception as e:
-                print(e)
+        try:
+            if mq['outgoing']:
+                for out_msg in mq['outgoing']:
+                    # TODO - Retry send if failed (times = 5)
+                    msgSend = mq['outgoing'].popleft()
+                    await self.send(**msgSend)
+            # RECEIVE MESSAGES FROM IRC HOST
+            new_msg = await self.receive()
+            if new_msg:
+                self.msgQ.queue[self.hostname]['incomming'].append(new_msg)
+        except Exception as e:
+            print(e)
 
     def initialize_queue(self):
         if self.hostname not in self.msgQ.queue:
@@ -62,10 +66,10 @@ class IRCCON:
                                               'outgoing': deque()}
 
     async def connect(self, **kwargs):
-        sslctx = ssl.create_default_context()
+        ssl_ctx = ssl.create_default_context()
         print(f"connecting to {self.hostname} {self.port}")
         # create ssl default context.
-        reader, writer = await asyncio.open_connection(self.hostname, self.port, ssl=sslctx)
+        reader, writer = await asyncio.open_connection(self.hostname, self.port, ssl=ssl_ctx)
         self.reader = reader
         self.writer = writer
         print(f"connected to {self.hostname}")
@@ -156,12 +160,12 @@ class IRCCON:
         data = await self.reader.read(4096)
         if data:
             data = data.decode()
-            print(f"received {data}")
+            print(data)
             if data.find('PING') != -1:
-                print("PONG")
-                print(f"received {data}")
                 response = ('PONG ' + data.split()[1])
+                print(response)
                 await self.send(message=response)
+        #return data
 
     async def join_channel(self, channel=None, key=None):
         print(f"joining {channel}")
