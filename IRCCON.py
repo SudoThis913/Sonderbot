@@ -1,208 +1,205 @@
+#!/usr/bin/python3
 import asyncio
 import ssl
-from collections import deque
-# Asynchronous IRC connection.
+import logging
 from Queues import MessageQueues
+import traceback
 
 '''
 Asynchronous IRC connection class.
-Interfaces with CONNECTIONS.handler via MessageQueues class
-Initiate IRCCON first w/ connection info, then run connect() in async loop
-#TODO Change message type to asyncio queue.
+
+Queue: { hostname:
+            hostnameID: int
+            incomming: deque([Message,Message,Message])
+            outgoing:  deque([Message,Message,Message])
+            commands:  deque()
+}
+Message: {
+    channel:
+    message:
+    user:
+}
 '''
 
 
-class IRCCON:
-    def __init__(self, hostname=None, port=None,
-                 botnick=None, botnick2=None, botnick3=None, botpass=None,
-                 messagequeue=MessageQueues):
-        self.msgQ = messagequeue
+class IRC_Connection:
+    connected = False
+    active = False
+    timeout = 10
+    RECONNECT_MAX_TIME = 60
+
+    def __init__(self, **bot_params):
         self.connected = False
+        self.active = False
         self.authenticated = False
-        # TODO Update as function params instead of class variable to limit scope
-        self.reader = None
-        self.writer = None
-        self.channels = ['#botspam']
-        self.hostname = hostname
-        self.port = port
-        self.botnick = botnick
-        self.botnick2 = botnick2
-        self.botnick3 = botnick3
-        self.botpass = botpass
-        self.initialize_queue()
+        self.hostname = bot_params['hostname']
+        self.timeout = 10
+        self.reconnect_attempts = 1
+        self.channels = {}
 
-    async def handler(self, message=None, channel=None, user=None, in_commands=None):
-        # Process commands
-        if in_commands:
-            await self.commands(in_commands)
-        qlock = asyncio.Lock()
-        mq = None
-        #Lock the outgoing queue.
-        async with qlock:
-            # Queue outgoing messages
-            if message:
-                self.msgQ.queue[self.hostname]['outgoing'].append(
-                    {'message': message, 'channel': channel, 'user': user})
-            # Copy message queue for conditional statements
-            mq = self.msgQ.queue[self.hostname].copy()
-            self.msgQ.queue[self.hostname]['outgoing'].clear()
-            # SEND MESSAGES IN OUTGOING QUEUE TO IRC HOST
-        try:
-            if mq['outgoing']:
-                for out_msg in mq['outgoing']:
-                    # TODO - Retry send if failed (times = 5)
-                    msgSend = mq['outgoing'].popleft()
-                    await self.send(**msgSend)
-            # RECEIVE MESSAGES FROM IRC HOST
-            new_msg = await self.receive()
-            if new_msg:
-                self.msgQ.queue[self.hostname]['incomming'].append(new_msg)
-        except Exception as e:
-            print(e)
+    async def connect(self, msq=MessageQueues, **params):
+        wait = min(self.reconnect_attempts * 2, self.RECONNECT_MAX_TIME)  # max wait time on reconnect attempts
+        connect_attempts = 0
+        if self.reconnect_attempts < 120:
+            print("Connection Attempt: " + str(self.reconnect_attempts))
+            try:
+                ssl_ctx = ssl.create_default_context()
+                reader, writer = await asyncio.open_connection(params['hostname'], params['port'], ssl=ssl_ctx)
+                self.connected = True
+                # Create authenticate task, then continue to run handler.
+                au = asyncio.create_task(self.authenticate_user(msq, reader, writer, **params))
+                sq = asyncio.create_task(self.send_queue(msq, writer))
+                rq = asyncio.create_task(self.receive_queue(msq,reader,writer))
+                await asyncio.gather(au, sq, rq)
+            except TimeoutError:
+                print("Timeout Error")
+                self.reconnect_attempts = self.reconnect_attempts + 1
+                await self.reset_reconnect_attempts(self.reconnect_attempts)
+                self.connected = False
+            except Exception as e:
+                print("Exception")
+                traceback.print_exc()
+                print(e)
+                self.reconnect_attempts = self.reconnect_attempts + 1  # increment reconnect attempts
+                await self.reset_reconnect_attempts(self.reconnect_attempts)
+                self.connected = False
+        else:
+            print(f"Max Retries {params['hostname']}")
+            return False
 
-    def initialize_queue(self):
-        if self.hostname not in self.msgQ.queue:
-            self.msgQ.queue[self.hostname] = {'incomming': deque(),
-                                              'outgoing': deque()}
+    async def reset_reconnect_attempts(self, recon_num):
+        print("reset")
+        await asyncio.sleep(500)
+        if self.reconnect_attempts < recon_num + 1:
+            self.reconnect_attempts = 0
 
-    async def connect(self, **kwargs):
+    def create_ssl_ctx(self, **params):
+        print("ctx")
         ssl_ctx = ssl.create_default_context()
-        print(f"connecting to {self.hostname} {self.port}")
-        # create ssl default context.
-        reader, writer = await asyncio.open_connection(self.hostname, self.port, ssl=ssl_ctx)
-        self.reader = reader
-        self.writer = writer
-        print(f"connected to {self.hostname}")
-        self.connected = True
+        if not params['ssl']:
+            # TODO handle non-ssl connection
+            ssl_ctx = ssl.create_default_context()
+        return ssl_ctx
 
-        # Authenticate user, Start handling IO calls
-        await self.authenticate_user()
-        # Loop IO calls and message queue handling
-        await asyncio.sleep(.5)
-        # await self.joinChannel("#botspam")
+
+    async def send_queue(self, msq, writer):
         while self.connected:
-            await self.handler()
+            #print("S_Q")
+            if msq.queue[self.hostname]['outgoing']:
+                outgoing = msq.queue[self.hostname]['outgoing'].popleft()
+                await self.send(writer, self.irc_msg_format(**outgoing))
+            await asyncio.sleep(.2)
+        return False
 
-    async def leave(self, channel=None):
-        pass
+    async def send(self, writer, message=None):
+        print("SENDING " + message)
+        writer.write(message.encode())
+        # print("send_2")
+        await writer.drain()
+        # print("send_3")
+        # TODO return sent confirmation for sql logging
+        return True
 
-    async def commands(self, in_commands=None):
-        '''
-        IRC commands dispatch table.
-        Commands as {"command":{paramaters:""}}
-        '''
+    async def receive_queue(self, msq, reader, writer):
+        while self.connected:
+            incomming = await self.receive(reader, writer)
+            if incomming != -1:
+                #print("r_q_inc " + incomming)
+                msq.queue[self.hostname]['incomming'].append(incomming)
+                if incomming.startswith('ERROR :Closing link:'):
+                    raise TimeoutError
+                # print("r_q4")
+            await asyncio.sleep(.2)
+        return False
 
-        IRC_commands = {
-            "connect": self.connect,
-            "join": self.join_channel,
-            "leave": self.leave,
-            "disconect": self.disconnect,
-            "getUsers": self.get_users,
-            "nickname": self.set_nickname
-        }
-        try:
-            for command in in_commands.keys():
-                if command in IRC_commands.keys():
-                    await IRC_commands[command](**in_commands[command])
-                    print(f"COMMAND: {command}")
-        except Exception as e:
-            print(e)
+    async def receive(self, reader, writer):
+        response = await reader.read(4096)
+        if response != -1:
+            response = response.decode()
+            # print("rec3" + response)
+            if response.startswith('PING'):
+                print("ping: " + response)
+                await self.send(writer, message=(str(response).replace('PING','PONG')))
+                print(str(response).replace('PING','PONG'))
+            print("rec4 ")
+            return response
+        else:
+            print("rec4 ")
+            return None
 
-    async def get_users(self):
-        pass
+    def irc_msg_format(self, **msg):
+        message, user, channel = msg['message'], msg['user'], msg['channel']
+        if (message and user and channel): return f"PRIVMSG {channel[1:]} :/msg {user[1:]} {message}\n"
+        if (message and user): return f"PRIVMSG :/msg {user[1:]} {message}\n"
+        if (message and channel): return f"PRIVMSG {channel[1:]} {message}\n"
+        if (message): return f"{message}\n"
+        return None
 
-    async def reconnect(self, times=1):
-        pass
-
-    async def authenticate_user(self):
+    async def authenticate_user(self, msq, reader, writer, **params):
         # Send password (optional)
-        if self.botpass is not None:
+        # print("au_1")
+        if params['botpass']:
+            # print("au_bp")
             await asyncio.sleep(1)
-            await self.handler(message=f"PASS {self.botpass} \n")
+            await self.send(writer, f"PASS {params['botpass']}\n")
+            await asyncio.sleep(.5)
+        # Send usernames and set nickname
+        await asyncio.sleep(.5)
+        await self.send(writer, f"USER {params['botnick']} {params['botnick2']} {params['botnick3']} :Sonderbot\n")
+        await asyncio.sleep(.5)
+        await self.send(writer, f"NICK {params['botnick']}\n")
+        await asyncio.sleep(5)
+        await self.join_channel(msq, channel='#botspam')
 
-        # Send usernames
-        await asyncio.sleep(1)
-        await self.send(message=f"USER {self.botnick} {self.botnick2} {self.botnick3} :Sonderbot\n", channel=None,
-                        user=None)
-        await self.set_nickname(self.botnick)
-        self.authenticated = True
-
-    async def set_nickname(self, nickname):
-        # Set nickname
-        print(f"NICK {nickname}")
-        await self.send(message=f"NICK {nickname} \n", channel=None, user=None)
-
-    async def disconnect(self):
-        self.reader.close()
-        self.writer.close()
-        await self.writer.wait.closed()
-        await self.reader.wait.closed()
+    async def disconnect(self, reader, writer):
+        if reader.hasattribute('close'):
+            reader.close()
+            writer.close()
+            await reader.wait.closed()
+            await writer.wait.closed()
         self.connected = False
 
-    async def send(self, message=None, channel=None, user=None):
-        if not channel and not user and not message:
-            pass
-        if channel and user and message:
-            message = f"PRIVMSG {channel[1:]} :/msg {user[1:]} {message}\n"
-            print(f"send: MCU {message}")
-        elif channel and message:
-            message = f"PRIVMSG {channel[1:]} {message}\n"
-            print(f"send: CM {message}")
-        elif message:
-            message = f"{message}\n"
-            print(f"send: M {message}")
-        if message is not None:
-            self.writer.write(message.encode())
-            await self.writer.drain()
-            print(f"sending: {message}")
+    async def join_channel(self, msq, channel=None, key=''):
+        self.channels[channel] = True
+        #Copy message template before submitting
+        join_msg = MessageQueues.message.copy()
+        join_msg['message'] = f"JOIN {channel} {key}\n"
+        msq.queue[self.hostname]['outgoing'].append(join_msg)
 
-    async def receive(self):
-        data = await self.reader.read(4096)
-        if data:
-            data = data.decode()
-            print(data)
-            if data.find('PING') != -1:
-                response = ('PONG ' + data.split()[1])
-                print(response)
-                await self.send(message=response)
-        #return data
-
-    async def join_channel(self, channel=None, key=None):
-        print(f"joining {channel}")
-        if key:  # if there is a channel key, add to command line
-            key = f" {key}"
-        await self.handler(message=f"JOIN {channel}{key}\n")
-        print(f"joined: {channel}")
-
-    def whisper(self, channel, user, message):
-        print(f"PRIVMSG {user}: {message}")
-        return (f"PRIVMSG #{channel} :/msg {user} {message}\r\n")
+    async def leave_channel(self, msq, channel=None):
+        self.channels[channel] = False
+        part_msg = MessageQueues.message.copy()
+        part_msg['message'] = f"PART {channel}\n"
+        msq.queue[self.hostname]['outgoing'].append(part_msg)
 
 
-class testBot:
-    def __init__(self, queue=MessageQueues):
-        self.mq = queue
-        self.qLock = asyncio.Lock()
-
-    async def bot_print(self):
-        async with self.qLock:
-            newmq = self.mq.queue.copy()
-            for hostnames in newmq.keys():
-                if self.mq.queue[hostnames]["incomming"]:
-                    print(self.mq.queue[hostnames]["incomming"].popleft())
-                else:
-                    pass
+class TestBot:
+    # TEST THE IRC CONNECTION W/ SIMPLE BOT. SHOULD PRINT ANYTHING SENT TO IT.
+    async def bot_print(self, queue=MessageQueues):
+        try:
+            while True:
+                mq = queue
+                for hostname in mq.queue.keys():
+                    if mq.queue[hostname]['incomming']:
+                        print(mq.queue[hostname]['incomming'].popleft())
+                await asyncio.sleep(1)
+        except Exception as e:
+            print("BOT EXCEPTION")
+            traceback.print_exc()
 
 
 async def main():
     # RUNS TEST BOT ON CONNECTION, SHOULD CONNECT AND PRINT ANYTHING ON THE CHANNEL
-    async_queue = MessageQueues
-    irc = IRCCON(hostname="irc.wetfish.net", port=6697,
-                 botnick="sonderbot", botnick2="Biggus", botnick3="Henry", botpass="sonderbotpw",
-                 messagequeue=MessageQueues)
-    bot = testBot(MessageQueues)
-    await asyncio.gather(bot.bot_print(), irc.connect())
-
+    message_queue = MessageQueues
+    message_queue.queue['irc.wetfish.net'] = MessageQueues.queue['hostname'].copy()
+    irc_parameters = {'hostname': "irc.wetfish.net", 'port': 6697, 'botnick': "sonderbot",
+                      'botnick2': "Biggus", 'botnick3': "Henry", 'botpass': 'sonderbotpw'}
+    irc = IRC_Connection(**irc_parameters)
+    bot = TestBot()
+    print("make bot")
+    sonderbot = asyncio.create_task(bot.bot_print(message_queue))
+    irccon = asyncio.create_task(irc.connect(message_queue, **irc_parameters))
+    await asyncio.gather(sonderbot,irccon)
 
 if __name__ == '__main__':
     # Run the test bot, connect to IRC.

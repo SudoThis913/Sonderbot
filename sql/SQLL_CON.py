@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import sqlite3 as sql3
-
+import datetime
 
 """
 Database connection package.
@@ -109,12 +109,14 @@ class DBconn:
             print("removed " + user)
         except Exception as e:
             print(e)
+
     def edit_user(self, contype, hostname, user, access):
         try:
             self.remove_user(hostname,user)
             self.add_user(contype,hostname,user,access)
         except Exception as e:
             print(e)
+
     def add_connection(self, contype, hostname, port, botnick,
                        botnick2, botnick3, botpass):
         try:
@@ -162,9 +164,38 @@ class DBconn:
         users = cur.fetchall()
         for row in users:
             print(row)
+    def remove_channel(self, del_host, del_channel):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            '''DELETE FROM CHANNELS WHERE HOSTNAME=?;''',del_host)
+        self.conn.commit()
+        print("removed "+del_host)
+
+    def add_irc_log(self, hostname, channel, user, message):
+        try:
+            cursor = self.conn.cursor()
+            now = datetime.datetime.now()
+            timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute(
+                '''INSERT INTO IRCLOG
+                (TIMESTAMP,HOSTNAME,CHANNEL,USER,MESSAGE)
+                VALUES(?,?,?,?,?);''',
+                (timestamp, hostname, channel, user, message))
+            self.conn.commit()
+            print("added " + hostname)
+        except Exception as e:
+            print(e)
+
+    def get_irc_channel_log(self, hostname, channel):
+        cur = self.conn.cursor()
+        cur.execute("""SELECT TIMESTAMP, CHANNEL, USER, MESSAGE FROM IRCLOG WHERE HOSTNAME=? AND CHANNEL=?""", (hostname,channel))
+        users = cur.fetchall()
+        for row in users:
+            print(row)
+
 
 if __name__ == '__main__':
-
+    # ALL MAIN METHODS ARE TEST CASES
     db = DBconn()
     db.add_connection('IRC', 'irc.wetfish.net', 6697, 'sonderbot','sonderbot2','sonderbot3','sbpass')
     db.get_connections()
@@ -172,4 +203,7 @@ if __name__ == '__main__':
     db.get_users()
     db.add_channel('IRC', 'irc.wetfish.net', '#botspam', 'Joined', True, True)
     db.get_channels('irc.wetfish.net')
+    db.get_irc_channel_log('irc.wetfish.net', '#botspam')
+    db.add_irc_log('irc.wetfish.net','#botspam','Sonder','WEEE I\'M A BOT')
+    db.get_irc_channel_log('irc.wetfish.net','#botspam')
     db.conn.close()
