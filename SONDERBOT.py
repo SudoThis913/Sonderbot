@@ -3,22 +3,100 @@ import functools
 import logging
 import sys
 
+from .Apps.AppManager import sba_context, SonderbotApp
+from .CONNECTIONS import SBConnections, MessageQueues
+from .sql.SQLL_CON import DBconn
+"""
+SONDERBOT IRC CLIENT
+*Supports multiple asynchronous connections.
+*Uses Hostname, Channel, User, Message to communicate with
+    CONNECTIONS.py and SonderBot Apps (SBA_*.py).
 
-class botState():
+"""
+
+class BOTCLIENT:
+    accessList = {"Sonder": 5}
     botConnected = False
     commandsList = {}
-    connections = {}
-    accessList = {}
+    connections = []
+    trigger = "!"
+    msgQ = MessageQueues()
+    appsList = {}
+    activeApps = {"hostname": {
+                    "channel": {
+                        "application": []
+                        }}}
+    activeCommands = {}
 
-class BOT():
-    bs = botState
-    async def connectionManager(self, state):
+    def __init__(self):
+        self.mqLock = asyncio.Lock()
+        asyncio.run(self.botHandler())
         pass
-    async def botFunctions(self, state):
+
+    async def botHandler(self, commands=None):
+        await self._get_bot_params()
+        await asyncio.gather(self.connection_handler(
+            self.msgQ), self.bot_commands(),
+            self._local_commands(), return_exceptions=True)
+
+    async def connection_handler(self, messageQueue):
+
+        # TODO handle connections
         pass
 
-    await asyncio.gather(connectionManager(bs), botFunctions(bs))
+    async def bot_commands(self):
+        # TODO bot level commands, connection level commands, app level commands
+        """ Compiles all commmands into a dispatch table"""
+        botCommands = {
+            'get_bot_params': self._get_bot_params(),
+        }
 
+        # TODO command scheduler / dispatch tables
+        pass
 
+    async def bot_commands_scheduler(self):
+        pass
 
+    async def _get_bot_params(self):
+        # TODO get bot paramters from file
+        # Will eventually incorporate sqlite logging
+        pass
 
+    async def _local_commands(self):
+        # TODO take commands from command line
+        pass
+
+    async def bot_logging(self):
+        pass
+
+    async def bot_print(self):
+        # Test print function, consumes queue, will turn into non-consuming function.
+        async with self.mqLock:
+            newmq = self.msgQ.queue.copy()
+            for hostnames in newmq.keys():
+                if self.msgQ.queue[hostnames]["incomming"]:
+                    print(self.msgQ.queue[hostnames]["incomming"].popleft())
+
+    async def sba_apps(self):
+        # TODO integrate Sonderbot Apps
+        pass
+
+    async def set_trigger(self, user=None, trigger="!"):
+        if user in self.accessList:
+            if self.accessList[user] > 5:
+                self.trigger = trigger
+
+    async def bot_die(self):
+        # If user has >4 ACL or is channel mod:
+        # Close connections
+        # Log commands
+        # Write pending queue to DB.
+        # Close apps
+        # Close Sonderbot
+        pass
+
+if __name__ == '__main__':
+    connection1 = {'hostname': "irc.wetfish.net", 'port': 6697,
+                   'botnick': "sonderbot", 'botnick2': "Biggus", 'botnick3': "Henry", 'botpass': "sonderbotpw",
+                   'messagequeue': MessageQueues()}
+    bot = BOTCLIENT()
