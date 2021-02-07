@@ -40,17 +40,21 @@ class IRC_Connection:
     async def connect(self, msq=MessageQueues, **params):
         wait = min(self.reconnect_attempts * 2, self.RECONNECT_MAX_TIME)  # max wait time on reconnect attempts
         connect_attempts = 0
-        if self.reconnect_attempts < 120:
+        while self.reconnect_attempts < 120:
             print("Connection Attempt: " + str(self.reconnect_attempts))
             try:
+                # Create SSL context, then open async socket stream.
                 ssl_ctx = ssl.create_default_context()
                 reader, writer = await asyncio.open_connection(params['hostname'], params['port'], ssl=ssl_ctx)
                 self.connected = True
-                # Create authenticate task, then continue to run handler.
+                await asyncio.sleep(.1)  # Give Sonderbot a chance to intervene after connecting.
+
+                # Run Authenticate, Send, Receive as tasks concurrently.
                 au = asyncio.create_task(self.authenticate_user(msq, reader, writer, **params))
                 sq = asyncio.create_task(self.send_queue(msq, writer))
-                rq = asyncio.create_task(self.receive_queue(msq,reader,writer))
+                rq = asyncio.create_task(self.receive_queue(msq, reader, writer))
                 await asyncio.gather(au, sq, rq)
+
             except TimeoutError:
                 print("Timeout Error")
                 self.reconnect_attempts = self.reconnect_attempts + 1
@@ -81,10 +85,9 @@ class IRC_Connection:
             ssl_ctx = ssl.create_default_context()
         return ssl_ctx
 
-
     async def send_queue(self, msq, writer):
         while self.connected:
-            #print("S_Q")
+            # print("S_Q")
             if msq.queue[self.hostname]['outgoing']:
                 outgoing = msq.queue[self.hostname]['outgoing'].popleft()
                 await self.send(writer, self.irc_msg_format(**outgoing))
@@ -104,7 +107,7 @@ class IRC_Connection:
         while self.connected:
             incomming = await self.receive(reader, writer)
             if incomming != -1:
-                #print("r_q_inc " + incomming)
+                # print("r_q_inc " + incomming)
                 msq.queue[self.hostname]['incomming'].append(incomming)
                 if incomming.startswith('ERROR :Closing link:'):
                     raise TimeoutError
@@ -119,8 +122,8 @@ class IRC_Connection:
             # print("rec3" + response)
             if response.startswith('PING'):
                 print("ping: " + response)
-                await self.send(writer, message=(str(response).replace('PING','PONG')))
-                print(str(response).replace('PING','PONG'))
+                await self.send(writer, message=(str(response).replace('PING', 'PONG')))
+                print(str(response).replace('PING', 'PONG'))
             print("rec4 ")
             return response
         else:
@@ -161,7 +164,7 @@ class IRC_Connection:
 
     async def join_channel(self, msq, channel=None, key=''):
         self.channels[channel] = True
-        #Copy message template before submitting
+        # Copy message template before submitting
         join_msg = MessageQueues.message.copy()
         join_msg['message'] = f"JOIN {channel} {key}\n"
         msq.queue[self.hostname]['outgoing'].append(join_msg)
@@ -199,7 +202,8 @@ async def main():
     print("make bot")
     sonderbot = asyncio.create_task(bot.bot_print(message_queue))
     irccon = asyncio.create_task(irc.connect(message_queue, **irc_parameters))
-    await asyncio.gather(sonderbot,irccon)
+    await asyncio.gather(sonderbot, irccon)
+
 
 if __name__ == '__main__':
     # Run the test bot, connect to IRC.

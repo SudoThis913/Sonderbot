@@ -1,9 +1,10 @@
 # Sonderbot
 Simple IRC chat bot written in Python.
-Working modules: IRCCON
+
+This project exists as a learning exercise and is in no way designed for a live production environment. Use at your own risk, this code is provided without warranty or guarantee.
+
+Working modules: IRCCON, SQL_CON
 
 In progress: SONDERBOT, CONNECTIONS, SBA_APPS.
 
-Has no reconnect strategy yet. Does not handle channel ops functions yet.
-Making a gradual transition from synchronous to async when I feel like it.
-Code reviews appreciated!
+Code reviews greatly appreciated!
