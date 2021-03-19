@@ -2,12 +2,13 @@
 import asyncio
 import ssl
 import logging
+import re
 from Queues import MessageQueues
 import traceback
 
 '''
 Asynchronous IRC connection class.
-
+Uses a Message Queue system to communicate with the Sonderbot
 Queue: { hostname:
             hostnameID: int
             incomming: deque([Message,Message,Message])
@@ -15,6 +16,7 @@ Queue: { hostname:
             commands:  deque()
 }
 Message: {
+    
     channel:
     message:
     user:
@@ -33,28 +35,23 @@ class IRC_Connection:
         self.active = False
         self.authenticated = False
         self.hostname = bot_params['hostname']
+        self.hostID = bot_params['hostID']
         self.timeout = 10
         self.reconnect_attempts = 1
         self.channels = {}
+        self.available_nicks = [bot_params["botnick"],bot_params["botnick2"],bot_params["botnick3"]]
 
     async def connect(self, msq=MessageQueues, **params):
-        wait = min(self.reconnect_attempts * 2, self.RECONNECT_MAX_TIME)  # max wait time on reconnect attempts
-        connect_attempts = 0
         if self.reconnect_attempts < 120:
             print("Connection Attempt: " + str(self.reconnect_attempts))
+            active_connection = None
             try:
-                ssl_ctx = ssl.create_default_context()
-                reader, writer = await asyncio.open_connection(params['hostname'], params['port'], ssl=ssl_ctx)
-                self.connected = True
-                # Create authenticate task, then continue to run handler.
-                au = asyncio.create_task(self.authenticate_user(msq, reader, writer, **params))
-                sq = asyncio.create_task(self.send_queue(msq, writer))
-                rq = asyncio.create_task(self.receive_queue(msq,reader,writer))
-                await asyncio.gather(au, sq, rq)
+                active_connection = await self.establish_connection(msq, **params)
             except TimeoutError:
                 print("Timeout Error")
                 self.reconnect_attempts = self.reconnect_attempts + 1
                 await self.reset_reconnect_attempts(self.reconnect_attempts)
+                if hasattr(active_connection, 'cancel'): active_connection.cancel()
                 self.connected = False
             except Exception as e:
                 print("Exception")
@@ -62,12 +59,24 @@ class IRC_Connection:
                 print(e)
                 self.reconnect_attempts = self.reconnect_attempts + 1  # increment reconnect attempts
                 await self.reset_reconnect_attempts(self.reconnect_attempts)
+                if hasattr(active_connection, 'cancel'): active_connection.cancel()
                 self.connected = False
         else:
             print(f"Max Retries {params['hostname']}")
             return False
 
+    async def establish_connection(self,msq=MessageQueues,**params):
+        ssl_ctx = ssl.create_default_context()
+        reader, writer = await asyncio.open_connection(params['hostname'], params['port'], ssl=ssl_ctx)
+        self.connected = True
+        # Create authenticate task, then continue to run handler.
+        auth_user = asyncio.create_task(self.authenticate_user(msq, reader, writer, **params))
+        send_stream = asyncio.create_task(self.send_queue(msq, writer))
+        receive_stream = asyncio.create_task(self.receive_queue(msq, reader, writer))
+        return asyncio.gather(auth_user, send_stream, receive_stream)
+
     async def reset_reconnect_attempts(self, recon_num):
+        # Will reset reconnect attempts if 500 seconds have passed without an error after last reconnect.
         print("reset")
         await asyncio.sleep(500)
         if self.reconnect_attempts < recon_num + 1:
@@ -88,7 +97,7 @@ class IRC_Connection:
             if msq.queue[self.hostname]['outgoing']:
                 outgoing = msq.queue[self.hostname]['outgoing'].popleft()
                 await self.send(writer, self.irc_msg_format(**outgoing))
-            await asyncio.sleep(.2)
+            await asyncio.sleep(.01)
         return False
 
     async def send(self, writer, message=None):
@@ -104,27 +113,25 @@ class IRC_Connection:
         while self.connected:
             incomming = await self.receive(reader, writer)
             if incomming != -1:
-                #print("r_q_inc " + incomming)
                 msq.queue[self.hostname]['incomming'].append(incomming)
-                if incomming.startswith('ERROR :Closing link:'):
-                    raise TimeoutError
-                # print("r_q4")
-            await asyncio.sleep(.2)
+            await asyncio.sleep(.01)
         return False
 
     async def receive(self, reader, writer):
         response = await reader.read(4096)
         if response != -1:
             response = response.decode()
+            # Handle IRC numeric responses
+            #await self.irc_numeric_response_process(response,writer)
             # print("rec3" + response)
             if response.startswith('PING'):
                 print("ping: " + response)
                 await self.send(writer, message=(str(response).replace('PING','PONG')))
                 print(str(response).replace('PING','PONG'))
-            print("rec4 ")
+            if response.startswith('ERROR :Closing link:'):
+                raise TimeoutError
             return response
         else:
-            print("rec4 ")
             return None
 
     def irc_msg_format(self, **msg):
@@ -147,7 +154,7 @@ class IRC_Connection:
         await asyncio.sleep(.5)
         await self.send(writer, f"USER {params['botnick']} {params['botnick2']} {params['botnick3']} :Sonderbot\n")
         await asyncio.sleep(.5)
-        await self.send(writer, f"NICK {params['botnick']}\n")
+        await self.send(writer, f"NICK {self.available_nicks[0]}\n")
         await asyncio.sleep(5)
         await self.join_channel(msq, channel='#botspam')
 
@@ -171,6 +178,46 @@ class IRC_Connection:
         part_msg = MessageQueues.message.copy()
         part_msg['message'] = f"PART {channel}\n"
         msq.queue[self.hostname]['outgoing'].append(part_msg)
+
+    async def irc_numeric_response_process(self,message,writer):
+        irc_numeric_response = re.search(r'^:.* [0-9]{1,3} .* :',message)
+        if irc_numeric_response:
+            numberic_code = re.search(r' [0-9]{1,3} ',str(irc_numeric_response))
+            await self.numberic_response_dispatch(numberic_code,writer)
+        error_response = re.search(r'^ERROR :Closing link:',message)
+        if error_response:
+            raise TimeoutError
+
+    async def numberic_response_dispatch(self,response,writer):
+        print("n_r_d")
+        async_numberic_dispatch = {
+            # 433 Nickname in use
+            "433": self.send,
+            "433_params":(writer, f"NICK {self.available_nicks.pop()}\n"),
+            "431": self.send,
+            "431_params":(writer, f"NICK {self.available_nicks.pop()}\n"),
+        }
+        numberic_dispatch = {
+            "001": self.register_authentication,
+        }
+        print("n_r_d_1")
+        try:
+            if response in async_numberic_dispatch.keys():
+                print("IRC numberic_response: "+response)
+                # noinspection PyUnresolvedReferences
+                await numberic_dispatch[response](numberic_dispatch[response + "_params"])
+            print("n_r_d_2")
+            if response in numberic_dispatch.keys():
+                print("numberic_dispatch"+response)
+                numberic_dispatch[response]()
+            print("n_r_d_return")
+        except Exception as e:
+            print(e)
+        return None
+
+    def register_authentication(self):
+        self.authenticated = True
+        print("User Authenticated")
 
 
 class TestBot:
