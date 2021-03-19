@@ -1,26 +1,55 @@
 import asyncio
-import ssl
-from collections import deque
-from IRCCON_OLD_ASYC import IRCCON as IRC
-from Queues import MessageQueues
+from .IRCCON import IRC_Connection as IRC
+
 '''
 *Asynchronous connections over SSL. Supports IRC client operations.
 *Shares a messageQueues class to transport data between IRC and bot client.
 Instantiate w/ IRC credentials before running .connect()
 
 Currently uses hard-coded values for development.
+
+
+Asynchronous IRC connection class.
+Queue: { hostname:
+            hostnameID: int
+            incomming: deque([Message,Message,Message])
+            outgoing:  deque([Message,Message,Message])
+            commands:  deque()
+}
+Message: {
+    channel:
+    message:
+    user:
+}
+
 '''
 
 
 # Used to send data between IRCCON and Sonderbot
+class All_Connections:
+    def __init__(self):
+        self.active_connections_list = []
+        self.active_connections = {}
+
+    async def add_connection(self,msg, in_loop=asyncio.get_running_loop(),**con_params,):
+        try:
+            if con_params["hostID"] not in self.active_connections_list:
+                self.active_connections_list.append(con_params["hostID"])
+                newIRC = IRC(**con_params)
+                newCon = await in_loop.create_task(newIRC.connect(msg, **con_params))
+                self.active_connections[con_params["hostID"]] = newCon
+            else:
+                raise ConnectionAbortedError
+        except Exception as e:
+            print(e)
+        return False
 
 
-class Connection:
+
+
+class IRCConnection:
     def __init__(self, contype, **kwargs):
-        irc_req = ['contype','ssl', 'hostname', 'port', 'botnick',
-               'botnick1', 'botnick2', 'botnick3', 'botpass']
-        discord_req = []
-        asyncio.create_task(IRC(kwargs))
+        asyncio.create_task(IRC(**kwargs))
 
 
 class SBConnections:
