@@ -1,7 +1,6 @@
 # core/message_queue.py
 
 import asyncio
-from typing import Dict
 from core.models import Message
 
 class MessageQueue:
