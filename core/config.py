@@ -23,6 +23,7 @@ class ConnectionConfig(BaseModel):
     channel_defaults: Optional[Dict[str, List[str]]] = {}
     host_defaults: Optional[List[str]] = []
     protocol_defaults: Optional[List[str]] = []
+    trigger_char: Optional[str] = "!"
 
     def is_irc(self) -> bool:
         return self.protocol.lower() == "irc"
@@ -31,7 +32,7 @@ class ConnectionConfig(BaseModel):
         self.botpass = resolve_secret(self.botpass, f"{self.protocol}/{self.hostname}/botpass")
         self.chanserv_pass = resolve_secret(self.chanserv_pass, f"{self.protocol}/{self.hostname}/chanserv")
 
-def load_config(path="config.json") -> List[ConnectionConfig]:
+def load_config(path="data/config.json") -> List[ConnectionConfig]:
     with open(path, "r") as f:
         data = json.load(f)
         connections = [ConnectionConfig(**conn) for conn in data.get("connections", [])]

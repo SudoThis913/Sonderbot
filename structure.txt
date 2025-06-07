@@ -1,0 +1,28 @@
+sonderbot/
+├── main.py                      # Entry point to launch Sonderbot
+│
+├── core/                        # Foundation: shared logic, models, queues, config, logging
+│   ├── __init__.py
+│   ├── models.py                # → Message, ConnectionConfig
+│   ├── message_queue.py         # → MessageQueue (asyncio-based)
+│   ├── session_queues.py        # → SessionQueues (per-session MQ container)
+│   ├── config.py                # → Loads config from JSON/YAML/env
+│   └── logger.py                # → Async logging setup
+│
+├── protocols/                   # Per-protocol logic (IRC, Discord)
+│   ├── __init__.py
+│   ├── irc.py                   # → Refactored from IRCCON.py
+│   └── discord.py              # → (future) Discord connection handling
+│
+├── apps/                        # Dynamic apps/plugins (per session)
+│   ├── __init__.py
+│   ├── loader.py                # → Dynamic app discovery & hot-reload
+│   └── example_app.py           # → A basic plugin template
+│
+├── data/                        # Configs, logs, and SQLite
+│   ├── config.json              # → Default connection/session settings
+│   ├── sessions.db              # → SQLite DB
+│   └── logs/
+│       └── sonderbot.log
+│
+└── requirements.txt             # Dependencies (e.g., aiosqlite, discord.py)

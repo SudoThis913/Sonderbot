@@ -35,7 +35,7 @@ class ConnectionConfig(BaseModel):
     chanserv_user: Optional[str] = None
     chanserv_pass: Optional[str] = None
     extra_channels: Optional[List[str]] = None
-    channels: Optional[Dict[str, List[str]]] = None  # key = channel, value = list of app names
+    channels: Optional[Dict[str, List[str]]] = None  # key = channel, value = list of apps names
 
     def is_irc(self) -> bool:
         return self.protocol == "irc"
