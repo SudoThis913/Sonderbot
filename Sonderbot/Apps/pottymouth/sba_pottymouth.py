@@ -11,7 +11,7 @@ def main1():
 # Pottymouth is a sonderbot app which randomly returns dirty phrases on command.
 class Pottymouth(SonderbotApp):
     lastDirty = ""
-    mainurl = "https://pornhub.com"
+    mainurl = "https://example.com"
 
     def __init__(self, name=None):
         SonderbotApp.__init__(self, name)
