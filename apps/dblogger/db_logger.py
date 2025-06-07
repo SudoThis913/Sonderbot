@@ -1,4 +1,4 @@
-# apps/dblogger/dblogger.py
+# apps/dblogger/db_logger.py
 
 from core.models import Message
 from core.db import DatabaseManager
@@ -11,11 +11,12 @@ class DBLoggerApp(SonderbotApp):
         return "db_logger"
 
     @classmethod
-    def module_name(cls): return "dblogger"
+    def module_name(cls): return "db_logger"
 
     def __init__(self, channel: str, host_id: str):
         super().__init__(channel, host_id)
         self.db = DatabaseManager()
+        print("db_logger initialized")
 
     async def setup(self):
         # Could be used to open connections or perform migrations

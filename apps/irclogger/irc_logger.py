@@ -1,4 +1,4 @@
-# apps/irclogger/irclogger.py
+# apps/irclogger/irc_logger.py
 
 import os
 import re

@@ -15,7 +15,7 @@ class SonderbotApp(ABC):
         return "base_class"
     @abstractmethod
     async def setup(self):
-        """Prepare the app (DB access, caches, etc)"""
+        """Prepare the apps (DB access, caches, etc)"""
         pass
 
     @abstractmethod
@@ -25,7 +25,7 @@ class SonderbotApp(ABC):
 
     @abstractmethod
     async def teardown(self):
-        """Cleanup when the app is unloaded."""
+        """Cleanup when the apps is unloaded."""
         pass
 
     async def on_tick(self):

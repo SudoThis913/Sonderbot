@@ -3,6 +3,7 @@
 import asyncio
 import shlex
 from core.session_manager import SessionManager
+from core.secrets import set_secret, delete_secret
 
 class SonderbotCLI:
     def __init__(self, session_manager: SessionManager):
@@ -30,6 +31,9 @@ class SonderbotCLI:
                 print("Reloading config...")
                 await self.session.shutdown()
                 await self.session.start_all()
+            case "reload-apps":
+                print("Reloading applications...")
+                await self.session.reload_apps()
             case "send":
                 if len(args) < 3:
                     print("Usage: send <host_id> <channel> <message>")
@@ -39,6 +43,16 @@ class SonderbotCLI:
                     await self.session.send_direct(host, channel, message)
             case "apps":
                 self.session.app_manager.list_apps()
+            case "set-secret":
+                if len(args) != 1:
+                    print("Usage: set-secret <service_key>")
+                else:
+                    set_secret(args[0])
+            case "delete-secret":
+                if len(args) != 1:
+                    print("Usage: delete-secret <service_key>")
+                else:
+                    delete_secret(args[0])
             case "log":
                 print("Not implemented yet: log viewer")
             case "help":
@@ -49,12 +63,15 @@ class SonderbotCLI:
     def print_help(self):
         print("""
 Commands:
-  shutdown / exit         Quit Sonderbot
-  reload-config           Reload config.json and restart connections
-  send <host> <chan> <msg> Send raw message
-  apps                    List active apps by channel
-  log <host> <chan>       Show recent messages (TODO)
-  help                    Show this message
+  shutdown / exit             Quit Sonderbot
+  reload-config               Reload config.json and restart connections
+  reload-apps                 Reload only apps without reconnecting
+  send <host> <chan> <msg>    Send raw message
+  apps                        List active apps by channel
+  log <host> <chan>           Show recent messages (TODO)
+  set-secret <key>            Store a password in keyring
+  delete-secret <key>         Remove a stored password
+  help                        Show this message
         """)
 
     async def shutdown(self):

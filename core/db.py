@@ -8,12 +8,15 @@ from typing import Optional, Any
 
 DB_PATH = Path("data/sonderbot.db")
 
-
 class DatabaseManager:
     def __init__(self, db_path: Path = DB_PATH):
         self.db_path = db_path
         self._pool: Optional[aiosqlite.Connection] = None
         self._lock = asyncio.Lock()
+
+    @property
+    def connection(self):
+        return self._pool
 
     async def initialize(self):
         async with self._lock:
